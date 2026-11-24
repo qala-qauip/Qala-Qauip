@@ -1,0 +1,115 @@
+@import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+:root {
+  --qq-bg: #080D14;
+  --qq-bg-alt: #101923;
+  --qq-panel: #15212D;
+  --qq-border: rgba(140, 155, 170, 0.16);
+  --qq-accent: #00D4E8;
+  --qq-text: #F4F7FA;
+  --qq-text-muted: #8C9BAA;
+  --qq-success: #22C55E;
+  --qq-warning: #F59E0B;
+  --qq-danger: #EF4444;
+}
+
+html.light {
+  --qq-bg: #F3F6FA;
+  --qq-bg-alt: #FFFFFF;
+  --qq-panel: #E8EEF5;
+  --qq-border: rgba(15, 23, 42, 0.12);
+  --qq-accent: #0095A8;
+  --qq-text: #0F172A;
+  --qq-text-muted: #475569;
+  --qq-success: #16A34A;
+  --qq-warning: #D97706;
+  --qq-danger: #DC2626;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--qq-bg);
+  color: var(--qq-text);
+  overscroll-behavior: none;
+}
+
+.font-display {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+}
+
+.font-mono-tech {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.qq-surface {
+  background-color: var(--qq-bg-alt);
+  border: 1px solid var(--qq-border);
+}
+
+.qq-panel {
+  background-color: var(--qq-panel);
+  border: 1px solid var(--qq-border);
+}
+
+.qq-glass {
+  background-color: rgba(16, 25, 35, 0.86);
+  border: 1px solid var(--qq-border);
+}
+
+html.light .qq-glass {
+  background-color: rgba(255, 255, 255, 0.92);
+}
+
+.qq-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.qq-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.qq-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(140, 155, 170, 0.28);
+  border-radius: 3px;
+}
+
+.qq-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 232, 0.45);
+}
+
+/* XR Blocks overlay styling when XR Spatial Mode is active */
+#XRButtonWrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  background: rgba(8, 13, 20, 0.88);
+  pointer-events: auto;
+}
+
+.XRButton {
+  background: linear-gradient(135deg, #00D4E8 0%, #38BDF8 100%);
+  color: #080D14;
+  border: none;
+  cursor: pointer;
+  border-radius: 9999px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 16px 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 8px 30px rgba(0, 212, 232, 0.25);
+}

@@ -1,0 +1,549 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.email == 'nertondz@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function hasStaffRole() {
+      return isVerified() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in [
+          'city_operator',
+          'agency_staff',
+          'agency_head',
+          'emergency_coordinator',
+          'city_admin',
+          'platform_admin'
+        ];
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'cityId', 'language', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'role', 'cityId', 'departmentId', 'language', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.role in ['citizen', 'city_operator', 'agency_staff', 'agency_head', 'emergency_coordinator', 'city_admin', 'platform_admin']
+        && isValidId(data.cityId)
+        && (!('departmentId' in data) || (data.departmentId is string && data.departmentId.size() <= 64))
+        && data.language in ['kk', 'ru', 'en']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivate(data) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'phone', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 32))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidIncident(data) {
+      return data.keys().hasAll([
+          'id', 'trackingNumber', 'cityId', 'district', 'category',
+          'severity', 'status', 'title', 'lat', 'lng', 'source',
+          'reporterUid', 'operatorVerified', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'trackingNumber', 'cityId', 'district', 'category',
+          'severity', 'status', 'title', 'description', 'lat', 'lng',
+          'address', 'source', 'reporterUid', 'assignedDepartmentId',
+          'assignedStaffUid', 'operatorVerified', 'aiSummary', 'dueAt',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.trackingNumber is string && data.trackingNumber.size() >= 3 && data.trackingNumber.size() <= 32
+        && isValidId(data.cityId)
+        && data.district is string && data.district.size() >= 1 && data.district.size() <= 64
+        && data.category in [
+          'traffic_accident', 'fire_smoke', 'flooding', 'road_pothole',
+          'congestion', 'fallen_tree', 'waste_overflow', 'infrastructure_damage',
+          'road_obstruction', 'water_pipe', 'power_outage'
+        ]
+        && data.severity in ['low', 'medium', 'high', 'critical']
+        && data.status in ['detected', 'under_review', 'confirmed', 'assigned', 'in_progress', 'resolved', 'closed']
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 200
+        && (!('description' in data) || (data.description is string && data.description.size() <= 2000))
+        && data.lat is number && data.lng is number
+        && (!('address' in data) || (data.address is string && data.address.size() <= 240))
+        && data.source in ['citizen', 'vision_ai', 'operator', 'sensor']
+        && isValidId(data.reporterUid)
+        && (!('assignedDepartmentId' in data) || (data.assignedDepartmentId is string && data.assignedDepartmentId.size() <= 64))
+        && (!('assignedStaffUid' in data) || (data.assignedStaffUid is string && data.assignedStaffUid.size() <= 128))
+        && data.operatorVerified is bool
+        && (!('aiSummary' in data) || (data.aiSummary is string && data.aiSummary.size() <= 1500))
+        && (!('dueAt' in data) || data.dueAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCitizenReport(data) {
+      return data.keys().hasAll(['id', 'cityId', 'reporterUid', 'category', 'description', 'lat', 'lng', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'cityId', 'reporterUid', 'category', 'description', 'lat', 'lng', 'status', 'linkedIncidentId', 'citizenFeedback', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.cityId)
+        && isValidId(data.reporterUid)
+        && data.category is string && data.category.size() >= 2 && data.category.size() <= 64
+        && data.description is string && data.description.size() >= 3 && data.description.size() <= 1500
+        && data.lat is number && data.lng is number
+        && data.status in ['submitted', 'linked_to_incident', 'resolved', 'rejected']
+        && (!('linkedIncidentId' in data) || (data.linkedIncidentId is string && data.linkedIncidentId.size() <= 64))
+        && (!('citizenFeedback' in data) || (data.citizenFeedback is string && data.citizenFeedback.size() <= 500))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidVisionDetection(data) {
+      return data.keys().hasAll(['id', 'cityId', 'operatorUid', 'hazardType', 'severity', 'confidence', 'operatorStatus', 'createdAt'])
+        && data.keys().hasOnly(['id', 'cityId', 'operatorUid', 'hazardType', 'severity', 'confidence', 'explanation', 'operatorStatus', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.cityId)
+        && isValidId(data.operatorUid)
+        && data.hazardType is string && data.hazardType.size() >= 2 && data.hazardType.size() <= 64
+        && data.severity in ['low', 'medium', 'high', 'critical']
+        && data.confidence is number && data.confidence >= 0 && data.confidence <= 1
+        && (!('explanation' in data) || (data.explanation is string && data.explanation.size() <= 1500))
+        && data.operatorStatus in ['pending', 'confirmed', 'dismissed']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidWorkOrder(data) {
+      return data.keys().hasAll(['id', 'cityId', 'creatorUid', 'title', 'priority', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'cityId', 'assetId', 'incidentId', 'departmentId', 'creatorUid', 'title', 'priority', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.cityId)
+        && (!('assetId' in data) || (data.assetId is string && data.assetId.size() <= 64))
+        && (!('incidentId' in data) || (data.incidentId is string && data.incidentId.size() <= 64))
+        && (!('departmentId' in data) || (data.departmentId is string && data.departmentId.size() <= 64))
+        && isValidId(data.creatorUid)
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 200
+        && data.priority in ['low', 'medium', 'high', 'urgent']
+        && data.status in ['open', 'scheduled', 'in_progress', 'completed']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPartnershipRequest(data) {
+      return data.keys().hasAll(['id', 'organization', 'contactName', 'message', 'submitterUid', 'createdAt'])
+        && data.keys().hasOnly(['id', 'organization', 'contactName', 'city', 'message', 'submitterUid', 'createdAt'])
+        && isValidId(data.id)
+        && data.organization is string && data.organization.size() >= 2 && data.organization.size() <= 160
+        && data.contactName is string && data.contactName.size() >= 2 && data.contactName.size() <= 120
+        && (!('city' in data) || (data.city is string && data.city.size() <= 80))
+        && data.message is string && data.message.size() >= 5 && data.message.size() <= 1500
+        && isValidId(data.submitterUid)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'recipientUid', 'title', 'body', 'read', 'createdAt'])
+        && data.keys().hasOnly(['id', 'recipientUid', 'cityId', 'title', 'body', 'read', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.recipientUid)
+        && (!('cityId' in data) || (data.cityId is string && data.cityId.size() <= 64))
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && data.body is string && data.body.size() >= 1 && data.body.size() <= 600
+        && data.read is bool
+        && data.createdAt is timestamp;
+    }
+
+    // --- Connection Check Document ---
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+    }
+
+    // --- Admin Registry ---
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // --- Users (Public role metadata) & Isolated Private PII ---
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId) && isVerified()
+        && isValidUser(incoming())
+        && incoming().uid == request.auth.uid
+        && userId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (incoming().role == 'citizen' || isAdmin());
+      allow update: if isValidId(userId) && isVerified()
+        && isValidUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'language', 'updatedAt']))
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+
+      match /private/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && (isOwner(userId) || isAdmin());
+        allow create: if isValidId(userId) && isValidId(docId) && isVerified()
+          && (isOwner(userId) || isAdmin())
+          && isValidUserPrivate(incoming())
+          && incoming().uid == userId
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(docId) && isVerified()
+          && (isOwner(userId) || isAdmin())
+          && isValidUserPrivate(incoming())
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'updatedAt']);
+        allow delete: if isValidId(userId) && isValidId(docId) && isAdmin();
+      }
+    }
+
+    // --- Reference Municipal Collections ---
+    match /cities/{cityId} {
+      allow get: if isValidId(cityId);
+      allow list: if true;
+      allow write: if isValidId(cityId) && isAdmin();
+    }
+
+    match /organizations/{orgId} {
+      allow get: if isValidId(orgId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow write: if isValidId(orgId) && isAdmin();
+    }
+
+    match /departments/{deptId} {
+      allow get: if isValidId(deptId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow write: if isValidId(deptId) && isAdmin();
+    }
+
+    // --- Incidents & Full Response Lifecycle ---
+    match /incidents/{incidentId} {
+      allow get: if isValidId(incidentId) && (
+        existing().operatorVerified == true ||
+        (isSignedIn() && existing().reporterUid == request.auth.uid) ||
+        hasStaffRole() ||
+        isAdmin()
+      );
+      allow list: if resource.data.operatorVerified == true
+        || (isSignedIn() && resource.data.reporterUid == request.auth.uid);
+      allow create: if isValidId(incidentId) && isVerified()
+        && isValidIncident(incoming())
+        && incoming().id == incidentId
+        && incoming().reporterUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          hasStaffRole() ||
+          (incoming().status == 'detected' && incoming().operatorVerified == false)
+        );
+      allow update: if isValidId(incidentId) && isVerified()
+        && isValidIncident(incoming())
+        && incoming().id == existing().id
+        && incoming().reporterUid == existing().reporterUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (existing().status != 'closed' || isAdmin())
+        && (
+          isAdmin() ||
+          (hasStaffRole() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'status', 'severity', 'assignedDepartmentId', 'assignedStaffUid',
+            'operatorVerified', 'aiSummary', 'dueAt', 'updatedAt'
+          ]))
+        );
+      allow delete: if isValidId(incidentId) && isAdmin();
+    }
+
+    match /incidentEvidence/{evidenceId} {
+      allow get: if isValidId(evidenceId) && isSignedIn() && (
+        existing().uploaderUid == request.auth.uid || hasStaffRole() || isAdmin()
+      );
+      allow list: if isSignedIn() && resource.data.uploaderUid == request.auth.uid;
+      allow create: if isValidId(evidenceId) && isVerified()
+        && incoming().keys().hasAll(['id', 'incidentId', 'uploaderUid', 'phase', 'mediaType', 'createdAt'])
+        && incoming().keys().hasOnly(['id', 'incidentId', 'uploaderUid', 'phase', 'mediaType', 'storageRef', 'createdAt'])
+        && incoming().id == evidenceId
+        && incoming().uploaderUid == request.auth.uid
+        && incoming().phase in ['before', 'during', 'after']
+        && incoming().mediaType in ['image', 'video', 'audio']
+        && exists(/databases/$(database)/documents/incidents/$(incoming().incidentId))
+        && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(evidenceId) && isAdmin();
+    }
+
+    match /incidentHistory/{historyId} {
+      allow get: if isValidId(historyId) && isSignedIn() && (
+        existing().actorUid == request.auth.uid || hasStaffRole() || isAdmin()
+      );
+      allow list: if isSignedIn() && resource.data.actorUid == request.auth.uid;
+      allow create: if isValidId(historyId) && isVerified()
+        && incoming().keys().hasAll(['id', 'incidentId', 'actorUid', 'toStatus', 'createdAt'])
+        && incoming().keys().hasOnly(['id', 'incidentId', 'actorUid', 'fromStatus', 'toStatus', 'note', 'createdAt'])
+        && incoming().id == historyId
+        && incoming().actorUid == request.auth.uid
+        && incoming().toStatus is string && incoming().toStatus.size() <= 32
+        && exists(/databases/$(database)/documents/incidents/$(incoming().incidentId))
+        && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(historyId) && isAdmin();
+    }
+
+    // --- Citizen Reports ---
+    match /citizenReports/{reportId} {
+      allow get: if isValidId(reportId) && isSignedIn() && (
+        existing().reporterUid == request.auth.uid || hasStaffRole() || isAdmin()
+      );
+      allow list: if isSignedIn() && resource.data.reporterUid == request.auth.uid;
+      allow create: if isValidId(reportId) && isVerified()
+        && isValidCitizenReport(incoming())
+        && incoming().id == reportId
+        && incoming().reporterUid == request.auth.uid
+        && incoming().status == 'submitted'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(reportId) && isVerified()
+        && isValidCitizenReport(incoming())
+        && incoming().id == existing().id
+        && incoming().reporterUid == existing().reporterUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isOwner(existing().reporterUid) && incoming().diff(existing()).affectedKeys().hasOnly(['citizenFeedback', 'updatedAt'])) ||
+          (hasStaffRole() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'linkedIncidentId', 'updatedAt']))
+        );
+      allow delete: if isValidId(reportId) && isAdmin();
+    }
+
+    // --- Cameras & Vision AI Detections ---
+    match /cameras/{cameraId} {
+      allow get: if isValidId(cameraId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow write: if isValidId(cameraId) && isAdmin();
+    }
+
+    match /visionDetections/{detectionId} {
+      allow get: if isValidId(detectionId) && isSignedIn() && (
+        existing().operatorUid == request.auth.uid || hasStaffRole() || isAdmin()
+      );
+      allow list: if isSignedIn() && resource.data.operatorUid == request.auth.uid;
+      allow create: if isValidId(detectionId) && isVerified()
+        && isValidVisionDetection(incoming())
+        && incoming().id == detectionId
+        && incoming().operatorUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(detectionId) && isVerified()
+        && isValidVisionDetection(incoming())
+        && incoming().id == existing().id
+        && incoming().operatorUid == existing().operatorUid
+        && incoming().createdAt == existing().createdAt
+        && (isAdmin() || (hasStaffRole() && incoming().diff(existing()).affectedKeys().hasOnly(['operatorStatus'])));
+      allow delete: if isValidId(detectionId) && isAdmin();
+    }
+
+    // --- Infrastructure, Maintenance & Work Orders ---
+    match /infrastructureAssets/{assetId} {
+      allow get: if isValidId(assetId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isValidId(assetId) && (hasStaffRole() || isAdmin());
+      allow delete: if isValidId(assetId) && isAdmin();
+    }
+
+    match /maintenanceRecords/{recordId} {
+      allow get: if isValidId(recordId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(recordId) && (hasStaffRole() || isAdmin());
+      allow update, delete: if isValidId(recordId) && isAdmin();
+    }
+
+    match /workOrders/{orderId} {
+      allow get: if isValidId(orderId) && isSignedIn() && (
+        existing().creatorUid == request.auth.uid || hasStaffRole() || isAdmin()
+      );
+      allow list: if isSignedIn() && resource.data.creatorUid == request.auth.uid;
+      allow create: if isValidId(orderId) && isVerified()
+        && isValidWorkOrder(incoming())
+        && incoming().id == orderId
+        && incoming().creatorUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(orderId) && isVerified()
+        && isValidWorkOrder(incoming())
+        && incoming().id == existing().id
+        && incoming().creatorUid == existing().creatorUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (existing().status != 'completed' || isAdmin())
+        && (
+          isAdmin() ||
+          ((hasStaffRole() || isOwner(existing().creatorUid))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'priority', 'departmentId', 'updatedAt']))
+        );
+      allow delete: if isValidId(orderId) && isAdmin();
+    }
+
+    // --- Telemetry & Predictions (Publicly readable read-only snapshots or staff writes) ---
+    match /weatherRecords/{recordId} {
+      allow get, list: if true;
+      allow write: if isValidId(recordId) && (hasStaffRole() || isAdmin());
+    }
+
+    match /environmentalRecords/{recordId} {
+      allow get, list: if true;
+      allow write: if isValidId(recordId) && (hasStaffRole() || isAdmin());
+    }
+
+    match /trafficRecords/{recordId} {
+      allow get, list: if true;
+      allow write: if isValidId(recordId) && (hasStaffRole() || isAdmin());
+    }
+
+    match /riskPredictions/{predictionId} {
+      allow get, list: if true;
+      allow write: if isValidId(predictionId) && (hasStaffRole() || isAdmin());
+    }
+
+    // --- Notifications ---
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isSignedIn() && (
+        existing().recipientUid == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && resource.data.recipientUid == request.auth.uid;
+      allow create: if isValidId(notificationId) && isVerified()
+        && isValidNotification(incoming())
+        && incoming().id == notificationId
+        && incoming().createdAt == request.time
+        && (incoming().recipientUid == request.auth.uid || hasStaffRole() || isAdmin());
+      allow update: if isValidId(notificationId) && isVerified()
+        && isValidNotification(incoming())
+        && incoming().id == existing().id
+        && incoming().recipientUid == existing().recipientUid
+        && incoming().createdAt == existing().createdAt
+        && (isAdmin() || (isOwner(existing().recipientUid) && incoming().diff(existing()).affectedKeys().hasOnly(['read'])));
+      allow delete: if isValidId(notificationId) && isAdmin();
+    }
+
+    // --- AI Analysis, Generated Reports, Simulations ---
+    match /aiAnalysis/{analysisId} {
+      allow get: if isValidId(analysisId) && isSignedIn() && (
+        existing().authorUid == request.auth.uid || hasStaffRole() || isAdmin()
+      );
+      allow list: if isSignedIn() && resource.data.authorUid == request.auth.uid;
+      allow create: if isValidId(analysisId) && isVerified()
+        && incoming().keys().hasAll(['id', 'cityId', 'authorUid', 'prompt', 'summary', 'createdAt'])
+        && incoming().keys().hasOnly(['id', 'cityId', 'authorUid', 'prompt', 'summary', 'createdAt'])
+        && incoming().id == analysisId
+        && incoming().authorUid == request.auth.uid
+        && incoming().prompt is string && incoming().prompt.size() <= 1000
+        && incoming().summary is string && incoming().summary.size() <= 3000
+        && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(analysisId) && isAdmin();
+    }
+
+    match /generatedReports/{reportId} {
+      allow get: if isValidId(reportId) && isSignedIn() && (
+        existing().authorUid == request.auth.uid || hasStaffRole() || isAdmin()
+      );
+      allow list: if isSignedIn() && resource.data.authorUid == request.auth.uid;
+      allow create: if isValidId(reportId) && isVerified()
+        && incoming().keys().hasAll(['id', 'cityId', 'authorUid', 'period', 'title', 'createdAt'])
+        && incoming().keys().hasOnly(['id', 'cityId', 'authorUid', 'period', 'title', 'createdAt'])
+        && incoming().id == reportId
+        && incoming().authorUid == request.auth.uid
+        && incoming().period in ['daily', 'weekly', 'monthly']
+        && incoming().title is string && incoming().title.size() <= 200
+        && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(reportId) && isAdmin();
+    }
+
+    match /simulationSessions/{sessionId} {
+      allow get: if isValidId(sessionId) && isSignedIn() && (
+        existing().authorUid == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && resource.data.authorUid == request.auth.uid;
+      allow create: if isValidId(sessionId) && isVerified()
+        && incoming().keys().hasAll(['id', 'cityId', 'authorUid', 'scenario', 'createdAt'])
+        && incoming().keys().hasOnly(['id', 'cityId', 'authorUid', 'scenario', 'createdAt'])
+        && incoming().id == sessionId
+        && incoming().authorUid == request.auth.uid
+        && incoming().scenario is string && incoming().scenario.size() <= 80
+        && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(sessionId) && isAdmin();
+    }
+
+    // --- Integration Settings, Audit Logs & Partnership Inquiries ---
+    match /integrationSettings/{settingId} {
+      allow get: if isValidId(settingId) && isAdmin();
+      allow list: if isAdmin();
+      allow write: if isValidId(settingId) && isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow get: if isValidId(logId) && isSignedIn() && (
+        existing().actorUid == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && resource.data.actorUid == request.auth.uid;
+      allow create: if isValidId(logId) && isVerified()
+        && incoming().keys().hasAll(['id', 'actorUid', 'action', 'targetPath', 'createdAt'])
+        && incoming().keys().hasOnly(['id', 'actorUid', 'action', 'targetPath', 'createdAt'])
+        && incoming().id == logId
+        && incoming().actorUid == request.auth.uid
+        && incoming().action is string && incoming().action.size() <= 120
+        && incoming().targetPath is string && incoming().targetPath.size() <= 200
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /partnershipRequests/{requestId} {
+      allow get: if isValidId(requestId) && isSignedIn() && (
+        existing().submitterUid == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && resource.data.submitterUid == request.auth.uid;
+      allow create: if isValidId(requestId) && isVerified()
+        && isValidPartnershipRequest(incoming())
+        && incoming().id == requestId
+        && incoming().submitterUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(requestId) && isAdmin();
+    }
+  }
+}

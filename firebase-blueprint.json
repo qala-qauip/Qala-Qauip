@@ -1,0 +1,464 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Platform user account and role metadata.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": {
+          "type": "string",
+          "enum": [
+            "citizen",
+            "city_operator",
+            "agency_staff",
+            "agency_head",
+            "emergency_coordinator",
+            "city_admin",
+            "platform_admin"
+          ]
+        },
+        "cityId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "departmentId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]*$" },
+        "language": { "type": "string", "enum": ["kk", "ru", "en"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "role", "cityId", "language", "createdAt", "updatedAt"]
+    },
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Isolated PII for a user (email, phone).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "Organization": {
+      "title": "Organization",
+      "description": "Municipal or enterprise organization tenant.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "cityId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["akimat", "emergency", "utility", "transport", "ecology"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "cityId", "type", "createdAt"]
+    },
+    "City": {
+      "title": "City",
+      "description": "Supported city configuration.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "nameKk": { "type": "string", "maxLength": 100 },
+        "nameRu": { "type": "string", "maxLength": 100 },
+        "nameEn": { "type": "string", "maxLength": 100 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "status": { "type": "string", "enum": ["active_pilot", "planned", "expansion"] }
+      },
+      "required": ["id", "nameKk", "nameRu", "nameEn", "lat", "lng", "status"]
+    },
+    "Department": {
+      "title": "Department",
+      "description": "Municipal response department.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 160 },
+        "category": { "type": "string", "maxLength": 64 },
+        "slaMinutes": { "type": "integer" }
+      },
+      "required": ["id", "cityId", "name", "category", "slaMinutes"]
+    },
+    "Incident": {
+      "title": "Incident",
+      "description": "Verified or reported urban safety/infrastructure incident.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "trackingNumber": { "type": "string", "maxLength": 32 },
+        "cityId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "district": { "type": "string", "maxLength": 64 },
+        "category": {
+          "type": "string",
+          "enum": ["traffic_accident", "fire_smoke", "flooding", "road_pothole", "congestion", "fallen_tree", "waste_overflow", "infrastructure_damage", "road_obstruction", "water_pipe", "power_outage"]
+        },
+        "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "status": {
+          "type": "string",
+          "enum": ["detected", "under_review", "confirmed", "assigned", "in_progress", "resolved", "closed"]
+        },
+        "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "address": { "type": "string", "maxLength": 240 },
+        "source": { "type": "string", "enum": ["citizen", "vision_ai", "operator", "sensor"] },
+        "reporterUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "assignedDepartmentId": { "type": "string", "maxLength": 64 },
+        "assignedStaffUid": { "type": "string", "maxLength": 128 },
+        "operatorVerified": { "type": "boolean" },
+        "aiSummary": { "type": "string", "maxLength": 1500 },
+        "dueAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "trackingNumber", "cityId", "district", "category", "severity", "status", "title", "lat", "lng", "source", "reporterUid", "operatorVerified", "createdAt", "updatedAt"]
+    },
+    "IncidentEvidence": {
+      "title": "IncidentEvidence",
+      "description": "Metadata and summary for incident evidence media.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "incidentId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uploaderUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "phase": { "type": "string", "enum": ["before", "during", "after"] },
+        "mediaType": { "type": "string", "enum": ["image", "video", "audio"] },
+        "storageRef": { "type": "string", "maxLength": 512 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "incidentId", "uploaderUid", "phase", "mediaType", "createdAt"]
+    },
+    "IncidentHistory": {
+      "title": "IncidentHistory",
+      "description": "Immutable status transition and comment log.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "incidentId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fromStatus": { "type": "string", "maxLength": 32 },
+        "toStatus": { "type": "string", "maxLength": 32 },
+        "note": { "type": "string", "maxLength": 600 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "incidentId", "actorUid", "toStatus", "createdAt"]
+    },
+    "CitizenReport": {
+      "title": "CitizenReport",
+      "description": "Citizen-submitted urban issue report.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reporterUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "category": { "type": "string", "maxLength": 64 },
+        "description": { "type": "string", "minLength": 3, "maxLength": 1500 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "status": { "type": "string", "enum": ["submitted", "linked_to_incident", "resolved", "rejected"] },
+        "linkedIncidentId": { "type": "string", "maxLength": 64 },
+        "citizenFeedback": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "cityId", "reporterUid", "category", "description", "lat", "lng", "status", "createdAt", "updatedAt"]
+    },
+    "Camera": {
+      "title": "Camera",
+      "description": "Authorized municipal or demo camera source metadata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 120 },
+        "district": { "type": "string", "maxLength": 64 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "maintenance", "demo"] }
+      },
+      "required": ["id", "cityId", "name", "district", "lat", "lng", "status"]
+    },
+    "VisionDetection": {
+      "title": "VisionDetection",
+      "description": "AI Vision hazard detection result.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "operatorUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "hazardType": { "type": "string", "maxLength": 64 },
+        "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "confidence": { "type": "number" },
+        "explanation": { "type": "string", "maxLength": 1500 },
+        "operatorStatus": { "type": "string", "enum": ["pending", "confirmed", "dismissed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "cityId", "operatorUid", "hazardType", "severity", "confidence", "operatorStatus", "createdAt"]
+    },
+    "InfrastructureAsset": {
+      "title": "InfrastructureAsset",
+      "description": "Municipal utility or road asset.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "assetType": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 160 },
+        "district": { "type": "string", "maxLength": 64 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "condition": { "type": "string", "enum": ["good", "fair", "degraded", "critical"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
+        "riskScore": { "type": "integer" },
+        "departmentId": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "cityId", "assetType", "name", "district", "lat", "lng", "condition", "priority", "riskScore", "updatedAt"]
+    },
+    "MaintenanceRecord": {
+      "title": "MaintenanceRecord",
+      "description": "Historical maintenance entry for an infrastructure asset.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "assetId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "summary": { "type": "string", "maxLength": 500 },
+        "performedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "assetId", "cityId", "summary", "performedAt"]
+    },
+    "WorkOrder": {
+      "title": "WorkOrder",
+      "description": "Repair work order assigned to municipal teams.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "assetId": { "type": "string", "maxLength": 64 },
+        "incidentId": { "type": "string", "maxLength": 64 },
+        "departmentId": { "type": "string", "maxLength": 64 },
+        "creatorUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 200 },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
+        "status": { "type": "string", "enum": ["open", "scheduled", "in_progress", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "cityId", "creatorUid", "title", "priority", "status", "createdAt", "updatedAt"]
+    },
+    "TelemetryRecord": {
+      "title": "TelemetryRecord",
+      "description": "Weather, ecological, traffic, or risk prediction record with explicit source.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "source": { "type": "string", "maxLength": 100 },
+        "recordedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "cityId", "source", "recordedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User or operator notification.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "recipientUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 200 },
+        "body": { "type": "string", "maxLength": 600 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "recipientUid", "title", "body", "read", "createdAt"]
+    },
+    "AIAnalysis": {
+      "title": "AIAnalysis",
+      "description": "Persisted Qala Brain analysis log.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64 },
+        "authorUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "prompt": { "type": "string", "maxLength": 1000 },
+        "summary": { "type": "string", "maxLength": 3000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "cityId", "authorUid", "prompt", "summary", "createdAt"]
+    },
+    "GeneratedReport": {
+      "title": "GeneratedReport",
+      "description": "Generated daily/weekly/monthly report metadata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64 },
+        "authorUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "period": { "type": "string", "enum": ["daily", "weekly", "monthly"] },
+        "title": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "cityId", "authorUid", "period", "title", "createdAt"]
+    },
+    "SimulationSession": {
+      "title": "SimulationSession",
+      "description": "Saved 3D/traffic/demo simulation session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64 },
+        "authorUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "scenario": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "cityId", "authorUid", "scenario", "createdAt"]
+    },
+    "IntegrationSetting": {
+      "title": "IntegrationSetting",
+      "description": "Admin integration setting.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cityId": { "type": "string", "maxLength": 64 },
+        "provider": { "type": "string", "maxLength": 64 },
+        "enabled": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "cityId", "provider", "enabled", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable system audit log entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "action": { "type": "string", "maxLength": 120 },
+        "targetPath": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "actorUid", "action", "targetPath", "createdAt"]
+    },
+    "PartnershipRequest": {
+      "title": "PartnershipRequest",
+      "description": "Public website partnership inquiry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organization": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "contactName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "city": { "type": "string", "maxLength": 80 },
+        "message": { "type": "string", "minLength": 5, "maxLength": 1500 },
+        "submitterUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organization", "contactName", "message", "submitterUid", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile & role metadata (non-PII)."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Isolated user PII (email, phone)."
+    },
+    "/organizations/{orgId}": {
+      "schema": { "$ref": "#/entities/Organization" },
+      "description": "Municipal organizations."
+    },
+    "/cities/{cityId}": {
+      "schema": { "$ref": "#/entities/City" },
+      "description": "Supported cities."
+    },
+    "/departments/{deptId}": {
+      "schema": { "$ref": "#/entities/Department" },
+      "description": "Response departments."
+    },
+    "/incidents/{incidentId}": {
+      "schema": { "$ref": "#/entities/Incident" },
+      "description": "City incidents."
+    },
+    "/incidentEvidence/{evidenceId}": {
+      "schema": { "$ref": "#/entities/IncidentEvidence" },
+      "description": "Incident evidence records."
+    },
+    "/incidentHistory/{historyId}": {
+      "schema": { "$ref": "#/entities/IncidentHistory" },
+      "description": "Incident status transition history."
+    },
+    "/citizenReports/{reportId}": {
+      "schema": { "$ref": "#/entities/CitizenReport" },
+      "description": "Citizen submitted reports."
+    },
+    "/cameras/{cameraId}": {
+      "schema": { "$ref": "#/entities/Camera" },
+      "description": "Authorized cameras."
+    },
+    "/visionDetections/{detectionId}": {
+      "schema": { "$ref": "#/entities/VisionDetection" },
+      "description": "Vision AI detection outputs."
+    },
+    "/infrastructureAssets/{assetId}": {
+      "schema": { "$ref": "#/entities/InfrastructureAsset" },
+      "description": "Infrastructure assets."
+    },
+    "/maintenanceRecords/{recordId}": {
+      "schema": { "$ref": "#/entities/MaintenanceRecord" },
+      "description": "Infrastructure maintenance records."
+    },
+    "/workOrders/{orderId}": {
+      "schema": { "$ref": "#/entities/WorkOrder" },
+      "description": "Work orders."
+    },
+    "/weatherRecords/{recordId}": {
+      "schema": { "$ref": "#/entities/TelemetryRecord" },
+      "description": "Weather records."
+    },
+    "/environmentalRecords/{recordId}": {
+      "schema": { "$ref": "#/entities/TelemetryRecord" },
+      "description": "Environmental monitoring records."
+    },
+    "/trafficRecords/{recordId}": {
+      "schema": { "$ref": "#/entities/TelemetryRecord" },
+      "description": "Traffic monitoring records."
+    },
+    "/riskPredictions/{predictionId}": {
+      "schema": { "$ref": "#/entities/TelemetryRecord" },
+      "description": "Rule-based hazard predictions."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Operator and citizen notifications."
+    },
+    "/aiAnalysis/{analysisId}": {
+      "schema": { "$ref": "#/entities/AIAnalysis" },
+      "description": "Qala Brain analysis history."
+    },
+    "/generatedReports/{reportId}": {
+      "schema": { "$ref": "#/entities/GeneratedReport" },
+      "description": "Generated analytics reports."
+    },
+    "/simulationSessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/SimulationSession" },
+      "description": "Digital Twin simulation sessions."
+    },
+    "/integrationSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/IntegrationSetting" },
+      "description": "Integration settings."
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable audit logs."
+    },
+    "/partnershipRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/PartnershipRequest" },
+      "description": "Official site partnership inquiries."
+    }
+  }
+}
